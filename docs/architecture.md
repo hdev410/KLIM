@@ -44,6 +44,8 @@ flowchart LR
 
 `DataGenerator.generator()` loads `X` and `y` from a repository dataset or accepts a supplied dictionary through `RunPipeline.run()`. Small datasets may be resampled to the configured threshold and large datasets may be subsampled. The default split is stratified with a 30% test set. Scaling is fitted only on training features. Training anomaly labels are then exposed or masked according to the experiment's labeled-anomaly setting; test labels remain ground truth.
 
+Repository datasets are loaded from `datasets/Classical/`, `datasets/CV_by_ResNet18/`, or `datasets/NLP_by_BERT/`; supplied dictionaries must contain aligned `X` and `y` arrays. Optional preprocessing can add a configured realistic synthetic anomaly type or robustness noise before the split.
+
 ## Detector lifecycle
 
 ```mermaid
@@ -77,6 +79,14 @@ Anomaly label `1` is the positive class. Larger detector scores must indicate gr
 - inference time.
 
 After each model execution, the DataFrames are written to `adbench/result/` as `AUCROC_<suffix>.csv`, `AUCPR_<suffix>.csv`, `Time(fit)_<suffix>.csv`, and `Time(inference)_<suffix>.csv`. The method also returns detailed results in memory.
+
+## Experiment construction, seeding, and failures
+
+`RunPipeline.__init__()` selects one supervision category and builds its model registry. `RunPipeline.run()` forms the experiment grid from datasets, label availability, corruption settings, and seeds; unsupervised execution retains only the zero-labeled-anomaly setting.
+
+`DataGenerator.generator()` calls `Utils.set_seed()` before data operations. The split relies on that global NumPy seed rather than passing an explicit `random_state` to `train_test_split`. Detector adapters may seed again before fitting, and each detector should still pass the provided seed to estimator-specific random-state parameters.
+
+The pipeline catches detector initialization and execution failures. A failed fit produces missing metrics and `None` timing values rather than changing the result schema. After successful evaluation, the pipeline clears the Keras session, releases the detector, and invokes garbage collection. Constructor, preprocessing, metric calculation, cleanup, and CSV writing remain outside the fit and inference timing boundaries.
 
 ## Architectural rationale
 

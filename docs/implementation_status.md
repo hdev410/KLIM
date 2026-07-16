@@ -7,10 +7,11 @@ This is the living project-progress record. Future progress updates should modif
 | Repository inspection | ✓ Completed |
 | Dependency audit | ✓ Completed |
 | Knowledge base | ✓ Completed |
+| Documentation cleanup | ✓ Completed |
 | Environment verification | ✓ Completed |
 | Isolation Forest smoke test | ✓ Completed |
 | KLIM algorithm design | ✓ Completed - blocking decisions documented |
-| KLIM implementation | Not Started |
+| KLIM implementation | In Progress - anchor mapping completed |
 | KLIM integration | Not Started |
 | KLIM benchmark | Not Started |
 
@@ -38,3 +39,20 @@ This is the living project-progress record. Future progress updates should modif
 | 3 | 1.0 | 1.0 | 0.2699847221 |
 
 Result CSV files were created under `adbench/result/`. Blank rows for labeled-anomaly ratios above 0 are expected in unsupervised mode.
+
+## Documentation cleanup
+
+- 2026-07-16 - Documentation cleanup completed: environment compatibility findings were consolidated into `dependency_audit.md`, generic ADBench execution details were consolidated into `architecture.md`, and the redundant `environment_notes.md` and `workflow.md` files were removed.
+
+## KLIM implementation
+
+- Step 5.1 Detector skeleton: Completed
+- Step 5.2 Anchor mapping: Completed
+- Step 6 Scatter construction: Not Started
+
+### Stage 5.2 verification
+
+- Targeted command: `python -m unittest discover -s tests -p 'test_klim_anchor_mapping.py' -v`
+- Targeted result: 15 passed, 0 failed.
+- Interface regression result: 9 passed, 0 failed.
+- Remaining risks: sigma heuristic sensitivity; duplicate anchors; later `O(n^2)` graph construction.

@@ -59,13 +59,11 @@ ADBench/
 |   |-- architecture.md
 |   |-- detector_contract.md
 |   |-- dependency_audit.md
-|   |-- workflow.md
 |   |-- implementation_status.md
-|   |-- environment_notes.md
 |   |-- klim_algorithm_spec.md
-|   |-- klim_workflow.md
 |   |-- klim_implementation_plan.md
-|   `-- klim_test_plan.md
+|   |-- klim_test_plan.md
+|   `-- klim_workflow.md
 |-- references/                           [Bổ sung KLIM]
 |   `-- KLIM_Group.pdf
 |-- scripts/                              [Bổ sung KLIM]
@@ -221,11 +219,11 @@ Thứ tự ưu tiên cho KLIM:
 
 | Khi gặp vấn đề | Đọc trước | Mục đích |
 |---|---|---|
-| Cài đặt hoặc import lỗi | `SETUP.md`, sau đó `docs/environment_notes.md` | Phiên bản chính xác, lệnh cài đặt và lịch sử tương thích. |
+| Cài đặt hoặc import lỗi | `SETUP.md`, sau đó `docs/dependency_audit.md` | Phiên bản chính xác, lệnh cài đặt và lịch sử tương thích. |
 | Không hiểu kiến trúc | `docs/architecture.md` | Thành phần và trách nhiệm của pipeline. |
 | Không rõ detector phải có API gì | `docs/detector_contract.md` | Constructor, `fit()`, `predict_score()`, shape và score convention. |
 | Dependency hoặc eager import | `docs/dependency_audit.md` | Phân biệt dependency thật, framework overhead và deep model. |
-| Không rõ ADBench chạy theo thứ tự nào | `docs/workflow.md` | Luồng dataset đến metric và CSV. |
+| Không rõ ADBench chạy theo thứ tự nào | `docs/architecture.md` | Luồng dataset đến metric và CSV. |
 | Công thức KLIM | `references/KLIM_Group.pdf`, rồi `docs/klim_algorithm_spec.md` | Nguồn toán học và đặc tả kỹ thuật. |
 | Chuẩn bị triển khai KLIM | `docs/klim_implementation_plan.md` | Module, API, giai đoạn, rủi ro và rollback. |
 | Viết hoặc review test KLIM | `docs/klim_test_plan.md` | Unit, synthetic, ablation và reliability tests. |
@@ -242,4 +240,3 @@ Thứ tự ưu tiên cho KLIM:
 - [ ] Tôi không sửa ADBench core hoặc baseline ngoài phạm vi.
 - [ ] Tôi có test và tiêu chí hoàn thành rõ ràng.
 - [ ] Tôi sẽ không commit `.venv`, cache hoặc output benchmark.
-

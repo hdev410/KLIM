@@ -11,8 +11,7 @@ Read the relevant documents first:
 1. `docs/architecture.md`
 2. `docs/detector_contract.md`
 3. `docs/dependency_audit.md`
-4. `docs/workflow.md`
-5. `docs/implementation_status.md`
+4. `docs/implementation_status.md`
 
 Prefer these documents over scanning the entire repository again. Verify source only when a detail is absent, ambiguous, or potentially stale. Keep documentation synchronized with any authorized structural or behavioral change.
 
