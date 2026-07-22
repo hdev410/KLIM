@@ -1,11 +1,11 @@
-"""Focused tests for KLIM Stage 5.2 anchor mapping."""
+"""Focused tests for NFST Stage 5.2 anchor mapping."""
 
 import unittest
 
 import numpy as np
 
-from adbench.baseline.KLIM.anchor_mapping import AnchorMapping
-from adbench.baseline.KLIM.model import KLIMModel
+from adbench.baseline.NFST.anchor_mapping import AnchorMapping
+from adbench.baseline.NFST.model import NFSTModel
 
 
 class AnchorMappingTests(unittest.TestCase):
@@ -59,7 +59,9 @@ class AnchorMappingTests(unittest.TestCase):
         self.assertEqual(mapping.sigma_, sigma_before)
         self.assertEqual(mapping.anchor_diagnostics_, diagnostics_before)
 
-    def test_explicit_sigma_is_preserved_and_zero_distance_similarity_is_one(self) -> None:
+    def test_explicit_sigma_is_preserved_and_zero_distance_similarity_is_one(
+        self,
+    ) -> None:
         mapping = AnchorMapping(2, sigma=2.75, random_state=2).fit_anchor_mapping(
             self.fixture()
         )
@@ -110,9 +112,7 @@ class AnchorMappingTests(unittest.TestCase):
     def test_extreme_distances_remain_finite(self) -> None:
         X = np.array([[-1e150, -1e150], [1e150, 1e150], [0.0, 0.0]])
         mapping = AnchorMapping(2, sigma=1e-12, random_state=6).fit_anchor_mapping(X)
-        Z = mapping.transform_anchor_space(
-            np.array([[5e149, -5e149], [-9e149, 9e149]])
-        )
+        Z = mapping.transform_anchor_space(np.array([[5e149, -5e149], [-9e149, 9e149]]))
 
         self.assertTrue(np.all(np.isfinite(Z)))
         self.assertTrue(np.allclose(Z.sum(axis=1), 1.0))
@@ -152,14 +152,14 @@ class AnchorMappingTests(unittest.TestCase):
             mapping.transform_anchor_space(np.ones((2, 3)))
 
     def test_model_integrates_only_anchor_mapping(self) -> None:
-        model = KLIMModel(n_anchors=2, random_state=8)
+        model = NFSTModel(n_anchors=2, random_state=8)
         model.fit_anchor_mapping(self.fixture())
 
         self.assertTrue(model.anchor_mapping_fitted_)
         self.assertFalse(model.is_fitted_)
         self.assertEqual(model.anchors_.shape, (2, 2))
         self.assertEqual(model.Z_train_.shape, (6, 2))
-        with self.assertRaisesRegex(NotImplementedError, "scoring is not implemented"):
+        with self.assertRaisesRegex(RuntimeError, "not fitted"):
             model.decision_function(self.fixture())
 
 

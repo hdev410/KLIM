@@ -2,7 +2,7 @@
 
 ## Required interface
 
-`RunPipeline.model_fit()` expects a detector class with the following public surface:
+`RunPipeline.model_fit()` expects:
 
 ```python
 class Detector:
@@ -10,32 +10,26 @@ class Detector:
         ...
 
     def fit(self, X_train, y_train):
-        ...
         return self
 
-    def predict_score(self, X):
-        ...
+    def predict_score(self, X_test):
         return scores
 ```
 
-The pipeline uses keyword arguments for construction and fitting. Detector implementations must therefore accept the shown parameter names unless a corresponding pipeline branch explicitly provides a different signature.
-
-## Contract details
+The pipeline constructs and fits detectors with keyword arguments, so adapters must preserve these parameter names.
 
 | Element | Requirement |
 |---|---|
-| Constructor input | `seed` is an integer experiment seed; `model_name` is the registered model name or `"Customized"`. |
-| Constructor output | A detector instance. Model initialization may occur here or in `fit()`. |
-| `fit()` input | `X_train` has shape `(N_train, D)` and `y_train` has shape `(N_train,)`. |
-| `fit()` output | The fitted detector instance (`self`). |
-| `predict_score()` input | A feature matrix with shape `(M, D)`, normally `X_test`. |
-| `predict_score()` output | A numeric one-dimensional array-like object with shape `(M,)`. |
-| Score convention | Larger values mean more anomalous. Scores need not be calibrated probabilities. |
-| Labels | Unsupervised detectors should not use `y_train` as ground truth. Semi-supervised and supervised detectors may use labels according to their category. |
-| Randomness | The detector must honor `seed` for its own stochastic components. Shared seeding alone is insufficient when an estimator accepts an explicit random-state argument. |
-| Errors | Invalid shapes, unsupported data, and fitting failures should raise informative exceptions; the pipeline converts execution failures to missing metrics. |
+| Constructor | Preserve the integer experiment `seed`; accept `model_name`. |
+| Training input | `X_train:(N_train,D)`, `y_train:(N_train,)`. |
+| Training output | The fitted detector instance. |
+| Score input | `X_test:(M,D)`. |
+| Score output | Finite numeric values `(M,)`; larger means more anomalous. |
+| Labels | Unsupervised detectors must not use masked `y_train` as ground truth. |
+| Randomness | Pass `seed` to detector-owned stochastic components. |
+| Errors | Invalid inputs and fit failures raise informative exceptions. |
 
-Binary labels use `0` for normal and `1` for anomaly. In an unsupervised experiment, true anomalies may remain in `X_train`, while unavailable anomaly labels are masked to zero in `y_train`.
+In unsupervised ADBench runs, hidden anomalies can remain in `X_train` while their unavailable labels are masked to zero. Fitting time covers `fit()` and inference time covers `predict_score()`; dataset work, metrics, persistence, and cleanup are outside those calls.
 
 ## Lifecycle
 
@@ -44,7 +38,6 @@ sequenceDiagram
     participant RP as RunPipeline.model_fit
     participant D as Detector
     participant M as Utils.metric
-
     RP->>D: Detector(seed=seed, model_name=name)
     RP->>D: fit(X_train, y_train)
     D-->>RP: self
@@ -54,29 +47,25 @@ sequenceDiagram
     M-->>RP: {aucroc, aucpr}
 ```
 
-Fitting time covers only the `fit()` call. Inference time covers only `predict_score()`. Constructor time, dataset preparation, metric calculation, CSV writing, and cleanup are excluded.
-
 ## Existing examples
 
-`adbench/baseline/PyOD.py` wraps multiple PyOD estimators behind one `PYOD` class. Its `predict_score()` delegates to PyOD's `decision_function()`.
+`adbench/baseline/PyOD.py` wraps PyOD estimators behind the `PYOD` adapter. `adbench/baseline/Customized/run.py` demonstrates the external-detector contract; its optional internal module split is organizational rather than required by `RunPipeline`.
 
-`adbench/baseline/Customized/run.py` demonstrates the external-detector contract with Logistic Regression. Its optional `model.py` and `fit.py` separation is organizational, not required by `RunPipeline`.
+## NFST adapter
 
-## New detector integration point
-
-KLIM is not implemented. When design and implementation are authorized, its benchmark-facing adapter belongs under:
+The standalone detector and thin adapter live under:
 
 ```text
-adbench/baseline/KLIM/
-├── __init__.py
-├── run.py       # required adapter class
-├── model.py     # optional model definition
-└── fit.py       # optional training helper
+adbench/baseline/NFST/
+|-- __init__.py
+|-- run.py
+|-- model.py
+|-- anchor_mapping.py
+|-- scatter.py
+|-- solver.py
+`-- scoring.py
 ```
 
-Two integration modes are available:
+`NFST.fit(X_train, y_train)` ignores `y_train` and delegates all supplied training rows to `NFSTModel.fit`. `NFST.predict_score(X_test)` delegates without refitting. The adapter honors the seed and returns nearest-base-point squared distances.
 
-1. Pass its adapter class through `RunPipeline.run(clf=...)`; this requires no permanent detector registration but results use the `Customized` column.
-2. Register the class under the appropriate supervision category in `RunPipeline.model_dict`; this gives it a stable built-in model name but modifies central orchestration and requires explicit justification.
-
-Before either integration, KLIM's supervision category, label policy, score orientation, reproducibility behavior, and input constraints must be documented and tested against this contract.
+NFST is intentionally not registered in `RunPipeline`. A later authorized integration may pass it as a custom detector or add it to the appropriate central category, with corresponding smoke tests. No central registration is part of the standalone implementation.

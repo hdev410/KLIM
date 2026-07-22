@@ -2,7 +2,7 @@
 
 ## Project purpose
 
-ADBench is a benchmark framework for comparing anomaly detectors under consistent dataset preparation, supervision, corruption, evaluation, and result-saving policies. Future work may add KLIM, but no agent should implement it without an explicit task.
+ADBench is a benchmark framework for comparing anomaly detectors under consistent dataset preparation, supervision, corruption, evaluation, and result-saving policies. Future work may add NFST, but no agent should implement it without an explicit task.
 
 ## Read before editing
 

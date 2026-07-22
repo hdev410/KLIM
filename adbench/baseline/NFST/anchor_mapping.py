@@ -1,4 +1,4 @@
-"""Anchor generation and normalized Gaussian memberships for KLIM."""
+"""Anchor generation and normalized Gaussian memberships for NFST."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import numpy as np
 from numpy.typing import NDArray
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.exceptions import ConvergenceWarning
-
 
 FloatArray = NDArray[np.float64]
 
@@ -71,7 +70,7 @@ def _squared_euclidean_distances(X: FloatArray, anchors: FloatArray) -> FloatArr
 
 
 class AnchorMapping:
-    """Fit KLIM anchors and transform samples into normalized anchor space."""
+    """Fit NFST anchors and transform samples into normalized anchor space."""
 
     def __init__(
         self,
