@@ -16,6 +16,8 @@ This is the living project-progress record. Future progress updates should modif
 | NFST pipeline smoke test | Completed |
 | IForest comparison smoke test | Completed |
 | NFST Step 9 one real-dataset benchmark | Completed with explicit low-eigen variant; strict-null attempt failed |
+| TMPNFST separate baseline implementation | Implemented; verification not run by user request |
+| NFST/TMPNFST/7-model multi-dataset test suite | Authored for 4+ datasets; not executed by user request |
 
 ## Environment verification
 
@@ -61,6 +63,37 @@ Result CSV files were created under `adbench/result/`. Blank rows for labeled-an
 - NFST pipeline smoke test: Completed
 - IForest comparison smoke test: Completed
 - Step 9 one real-dataset benchmark: Completed with low-eigen variant
+
+## TMPNFST implementation
+
+- Separate package under `adbench/baseline/TMPNFST/`; original NFST files are unchanged.
+- Sparse mutual k-NN graph, Gaussian edge weights, normalized spectral embedding,
+  K-means pseudo-labels, ordinary `Sw/Sb/St`, shared numerical NFST solver, and
+  projected nearest-component scoring are implemented.
+- Graph-contraction lifetimes are stored as diagnostics but do not change labels,
+  because the source does not specify a lifetime threshold in Algorithm 1.
+- `TMPNFST` is registered as an unsupervised baseline.
+- Focused unit, interface, registry, and multi-dataset configuration tests were
+  added but deliberately not executed in this task.
+- The comparison script defaults to nine datasets: Hepatitis, Ionosphere,
+  Vowels, Cardio, InternetAds, Fault, Glass, Yeast, and WDBC. The added five
+  maximize variation in dimensionality, anomaly ratio, and compatible sample
+  count. `--all-compatible` remains available for all local datasets that fit
+  the original NFST memory guard.
+
+### Multi-dataset convergence verification
+
+- Date: 2026-07-31.
+- Command: `python scripts/compare_nfst_tmpnfst_7_models.py` in the verified
+  Python 3.10 environment.
+- Shared TMPNFST graph/eigensolver configuration: `n_neighbors=15`,
+  `n_components=3`, `sigma=None`, `eigen_tolerance=1e-6`,
+  `eigen_maxiter=50000`, and smallest-algebraic ARPACK selection (`which="SA"`).
+- Result: TMPNFST completed seeds 1, 2, and 3 on Hepatitis, Ionosphere, Vowels,
+  and Cardio; 12/12 runs completed and no ARPACK convergence failure remained.
+- Numerical convergence does not guarantee an ideal partition. Ionosphere seed
+  3 produced component sizes `241/2/2`, and Cardio seed 3 produced `1276/2/3`;
+  these highly imbalanced pseudo-components remain a modeling-quality risk.
 
 ### Final standalone verification
 

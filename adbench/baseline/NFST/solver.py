@@ -15,6 +15,7 @@ FloatArray = NDArray[np.float64]
 
 @dataclass(frozen=True)
 class SolverResult:
+    """Output của solver: projection, spectrum, range basis và diagnostics."""
     projection: FloatArray
     eigenvalues: FloatArray
     selected_eigenvalues: FloatArray
@@ -25,6 +26,7 @@ class SolverResult:
 
 
 def _validate_tolerance(name: str, value: float) -> float:
+    """Optional validation: kiểm tra tolerance là số thực dương hữu hạn."""
     if isinstance(value, bool) or not isinstance(value, Real):
         raise ValueError(f"{name} must be a finite positive real number.")
     validated = float(value)
@@ -34,6 +36,7 @@ def _validate_tolerance(name: str, value: float) -> float:
 
 
 def _validate_max_components(max_components: int | None) -> int | None:
+    """Optional validation: kiểm tra số component là None hoặc số nguyên dương."""
     if max_components is None:
         return None
     if isinstance(max_components, bool) or not isinstance(max_components, Integral):
@@ -44,6 +47,7 @@ def _validate_max_components(max_components: int | None) -> int | None:
 
 
 def _validate_scatter(matrix: Any, name: str) -> FloatArray:
+    """Optional validation: đổi scatter thành ma trận vuông float64 hữu hạn."""
     try:
         raw = np.asarray(matrix)
     except (TypeError, ValueError) as exc:
@@ -63,6 +67,7 @@ def _symmetrize_roundoff(
     name: str,
     tolerance: float,
 ) -> tuple[FloatArray, float]:
+    """Optional validation: kiểm tra gần đối xứng và loại sai số làm tròn."""
     asymmetry = float(np.max(np.abs(matrix - matrix.T)))
     scale = max(1.0, float(np.max(np.abs(matrix))))
     if asymmetry > tolerance * scale:
@@ -79,7 +84,12 @@ def solve_nfst_projection(
     max_components: int | None = None,
     selection_mode: Literal["null", "smallest"] = "null",
 ) -> SolverResult:
-    """Solve the source-defined range-space then null-space NFST problem."""
+    """Nhận total/regularized scatter và trả projection NFST cùng diagnostics.
+
+    Thuật toán giải range-space rồi eigendecomposition bài toán thu gọn.
+    ``rank_tolerance`` và ``null_tolerance`` ảnh hưởng pass/failed số học;
+    ``selection_mode`` và ``max_components`` ảnh hưởng số hướng được chọn.
+    """
     rank_tol = _validate_tolerance("rank_tolerance", rank_tolerance)
     null_tol = _validate_tolerance("null_tolerance", null_tolerance)
     component_cap = _validate_max_components(max_components)
@@ -97,6 +107,7 @@ def solve_nfst_projection(
         regularized, "regularized_scatter", rank_tol
     )
 
+    # Phase 1 - Range space: giữ các hướng có total variance dương đáng kể.
     total_eigenvalues, total_eigenvectors = np.linalg.eigh(total)
     total_scale = max(1.0, float(np.max(np.abs(total_eigenvalues))))
     rank_threshold = rank_tol * total_scale
@@ -110,6 +121,7 @@ def solve_nfst_projection(
         )
     range_basis = np.ascontiguousarray(total_eigenvectors[:, range_mask])
 
+    # Phase 2 - Reduced problem: đưa within/regularized scatter vào range(S_T).
     reduced = range_basis.T @ regularized @ range_basis
     reduced = np.ascontiguousarray(0.5 * (reduced + reduced.T))
     eigenvalues, reduced_eigenvectors = np.linalg.eigh(reduced)
@@ -121,6 +133,8 @@ def solve_nfst_projection(
     null_threshold = null_tol * reduced_scale
 
     # Chỉ chọn trị riêng gần zero; không bù bằng hướng non-null.
+    # Phase 3 - Selection: strict-null chỉ nhận eigenvalue gần 0; smallest là
+    # biến thể thực dụng khi dữ liệu thật không có numerical null-space.
     null_indices = np.flatnonzero(np.abs(eigenvalues) <= null_threshold)
     numerical_nullity = int(null_indices.size)
     if selection_mode == "null":
@@ -136,6 +150,7 @@ def solve_nfst_projection(
         assert component_cap is not None
         selected_indices = np.arange(min(component_cap, rank), dtype=np.int64)
 
+    # Phase 4 - Recover: đổi eigenvector thu gọn về feature/anchor-space gốc.
     selected_vectors = reduced_eigenvectors[:, selected_indices]
     selected_eigenvalues = np.ascontiguousarray(
         eigenvalues[selected_indices], dtype=np.float64
@@ -144,6 +159,7 @@ def solve_nfst_projection(
     if not np.all(np.isfinite(projection)):
         raise ValueError("NFST projection must contain only finite values.")
 
+    # Diagnostics không đổi kết quả; chúng giúp phân biệt exact-null và low-eigen.
     projected_null_residuals = np.linalg.norm(reduced @ selected_vectors, axis=0)
     range_residual = float(
         np.linalg.norm(projection - range_basis @ (range_basis.T @ projection))

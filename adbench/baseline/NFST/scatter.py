@@ -16,6 +16,7 @@ DEFAULT_MAX_GRAPH_BYTES = 512 * 1024 * 1024
 
 @dataclass(frozen=True)
 class GraphResult:
+    """Output graph: W, degree, Laplacian và diagnostics."""
     similarity_graph: FloatArray
     degree: FloatArray
     laplacian: FloatArray
@@ -24,6 +25,7 @@ class GraphResult:
 
 @dataclass(frozen=True)
 class ScatterResult:
+    """Output phase scatter: các ma trận, subclass assignment và diagnostics."""
     global_scatter: FloatArray
     local_scatter: FloatArray
     total_scatter: FloatArray
@@ -34,6 +36,7 @@ class ScatterResult:
 
 
 def _validate_tolerance(tolerance: float) -> float:
+    """Optional validation: kiểm tra tolerance là số thực dương hữu hạn."""
     if isinstance(tolerance, bool) or not isinstance(tolerance, Real):
         raise ValueError("tolerance must be a finite positive real number.")
     validated = float(tolerance)
@@ -43,6 +46,7 @@ def _validate_tolerance(tolerance: float) -> float:
 
 
 def _validate_alpha(alpha: float) -> float:
+    """Optional validation: kiểm tra alpha nằm trong [0, 1]."""
     if isinstance(alpha, bool) or not isinstance(alpha, Real):
         raise ValueError("alpha must be a finite real number in [0, 1].")
     validated = float(alpha)
@@ -52,6 +56,7 @@ def _validate_alpha(alpha: float) -> float:
 
 
 def _validate_max_graph_bytes(max_graph_bytes: int | None) -> int | None:
+    """Optional validation: kiểm tra memory guard là None hoặc số byte dương."""
     if max_graph_bytes is None:
         return None
     if isinstance(max_graph_bytes, bool) or not isinstance(max_graph_bytes, Integral):
@@ -66,7 +71,7 @@ def validate_memberships(
     *,
     row_sum_tolerance: float = 1e-8,
 ) -> FloatArray:
-    """Validate row-oriented normalized anchor memberships."""
+    """Optional validation: kiểm tra Z 2D, không âm và mỗi hàng có tổng gần 1."""
     tolerance = _validate_tolerance(row_sum_tolerance)
     try:
         raw = np.asarray(Z)
@@ -95,17 +100,19 @@ def validate_memberships(
 
 
 def assign_subclasses(Z: Any) -> IntArray:
-    """Assign each row to its first maximum membership as in Eq. (11)."""
+    """Nhận membership Z, trả subclass ID bằng vị trí membership lớn nhất."""
     memberships = validate_memberships(Z)
     return np.asarray(np.argmax(memberships, axis=1), dtype=np.int64)
 
 
 def _symmetrize(matrix: FloatArray) -> FloatArray:
+    """Optional numerical cleanup: đối xứng hóa sai số float rất nhỏ."""
     # Chỉ đối xứng hóa để loại sai số làm tròn số học.
     return np.ascontiguousarray(0.5 * (matrix + matrix.T), dtype=np.float64)
 
 
 def _symmetry_error(matrix: FloatArray) -> float:
+    """Optional diagnostic: trả sai lệch đối xứng lớn nhất của ma trận."""
     return float(np.max(np.abs(matrix - matrix.T)))
 
 
@@ -114,6 +121,7 @@ def _validate_symmetric(
     name: str,
     tolerance: float,
 ) -> float:
+    """Optional validation: kiểm tra ma trận đối xứng trong tolerance."""
     error = _symmetry_error(matrix)
     scale = max(1.0, float(np.max(np.abs(matrix))))
     if error > tolerance * scale:
@@ -126,6 +134,7 @@ def _validate_psd(
     name: str,
     tolerance: float,
 ) -> tuple[float, float]:
+    """Optional validation: kiểm tra ma trận positive semidefinite."""
     eigenvalues = np.linalg.eigvalsh(matrix)
     minimum = float(eigenvalues[0])
     scale = max(1.0, float(np.max(np.abs(eigenvalues))))
@@ -141,7 +150,11 @@ def construct_graph_laplacian(
     max_graph_bytes: int | None = DEFAULT_MAX_GRAPH_BYTES,
     tolerance: float = 1e-10,
 ) -> GraphResult:
-    """Construct the dense source graph W=ZZ^T and L=D-W."""
+    """Nhận Z và trả dense graph W, degree, Laplacian L cùng diagnostics.
+
+    Thuật toán dùng ``W=ZZ.T`` và ``L=D-W``. ``max_graph_bytes`` chỉ giới hạn
+    RAM để tránh crash; ``tolerance`` chỉ điều khiển kiểm tra số học.
+    """
     memberships = validate_memberships(Z)
     validated_tolerance = _validate_tolerance(tolerance)
     byte_limit = _validate_max_graph_bytes(max_graph_bytes)
@@ -155,6 +168,7 @@ def construct_graph_laplacian(
             f"estimated {estimated_bytes} bytes exceeds max_graph_bytes={byte_limit}."
         )
 
+    # Phase 1: độ giống giữa hai mẫu là tích vô hướng membership của chúng.
     similarity_graph = np.ascontiguousarray(memberships @ memberships.T)
     if not np.all(np.isfinite(similarity_graph)):
         raise ValueError("W must contain only finite values.")
@@ -166,6 +180,7 @@ def construct_graph_laplacian(
     degree = np.ascontiguousarray(np.sum(similarity_graph, axis=1), dtype=np.float64)
 
     # Tạo L = D - W mà không cần lưu ma trận D riêng.
+    # Phase 2: tạo L=D-W trực tiếp để không cần cấp phát thêm ma trận D dense.
     laplacian = -similarity_graph.copy()
     diagonal = np.diag_indices(n_samples)
     laplacian[diagonal] += degree
@@ -181,6 +196,7 @@ def construct_graph_laplacian(
         laplacian, "L", validated_tolerance
     )
 
+    # Output diagnostics ghi memory, symmetry, row-sum và PSD checks.
     diagnostics = {
         "dense_graph_bytes_estimate": estimated_bytes,
         "laplacian_min_eigenvalue": minimum_eigenvalue,
@@ -201,7 +217,11 @@ def construct_scatter_matrices(
     max_graph_bytes: int | None = DEFAULT_MAX_GRAPH_BYTES,
     tolerance: float = 1e-10,
 ) -> ScatterResult:
-    """Construct the source-defined total and regularized scatter matrices."""
+    """Nhận membership Z/alpha và trả scatter matrices cùng subclass ID.
+
+    ``alpha`` cân bằng global scatter và graph-local scatter; nên tuning theo
+    validation. ``max_graph_bytes`` và ``tolerance`` chủ yếu ảnh hưởng pass/fail.
+    """
     memberships = validate_memberships(Z)
     validated_alpha = _validate_alpha(alpha)
     validated_tolerance = _validate_tolerance(tolerance)
@@ -211,6 +231,7 @@ def construct_scatter_matrices(
         tolerance=validated_tolerance,
     )
 
+    # Phase 1: mỗi mẫu thuộc subclass có anchor membership lớn nhất.
     assignments = np.asarray(np.argmax(memberships, axis=1), dtype=np.int64)
     empty_subclass_ids = np.setdiff1d(
         np.arange(memberships.shape[1], dtype=np.int64),
@@ -219,12 +240,15 @@ def construct_scatter_matrices(
     )
 
     # Centering tương đương Z.T @ H @ Z nhưng không tạo H dense.
+    # Phase 2: global/total scatter đo biến thiên quanh mean trong anchor-space.
     centered = memberships - np.mean(memberships, axis=0, keepdims=True)
     global_scatter = _symmetrize(centered.T @ centered)
 
     # Eq. (16) dùng trực tiếp Z.T @ L @ Z, không tính L^(1/2).
+    # Phase 3: local scatter giữ thông tin láng giềng từ graph Laplacian.
     local_scatter = _symmetrize(memberships.T @ graph.laplacian @ memberships)
     total_scatter = global_scatter.copy()
+    # Phase 4: alpha=1 thiên global; alpha=0 thiên hoàn toàn về local graph.
     regularized_scatter = _symmetrize(
         validated_alpha * global_scatter + (1.0 - validated_alpha) * local_scatter
     )

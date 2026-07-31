@@ -6,6 +6,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import logging
 import os
+from pathlib import Path
+import sys
 from typing import Any
 
 import numpy as np
@@ -14,7 +16,11 @@ import pandas as pd
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
-from benchmark_nfst_one_dataset import (
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from scripts.benchmark_nfst_one_dataset import (
     DATASET_PATH,
     GRAPH_LIMIT_BYTES,
     RealDatasetNFST,

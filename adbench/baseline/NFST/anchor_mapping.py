@@ -15,6 +15,7 @@ FloatArray = NDArray[np.float64]
 
 
 def _validate_positive_integer(name: str, value: int) -> int:
+    """Optional validation: kiểm tra một tham số là số nguyên dương."""
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise ValueError(f"{name} must be an integer.")
     if value < 1:
@@ -23,6 +24,7 @@ def _validate_positive_integer(name: str, value: int) -> int:
 
 
 def _validate_sigma(sigma: float | None) -> float | None:
+    """Optional validation: chuẩn hóa sigma thành None hoặc số thực dương."""
     if sigma is None:
         return None
     if isinstance(sigma, bool) or not isinstance(sigma, Real):
@@ -34,6 +36,7 @@ def _validate_sigma(sigma: float | None) -> float | None:
 
 
 def _validate_input(X: Any, expected_features: int | None = None) -> FloatArray:
+    """Optional validation: đổi X thành float64 2D hữu hạn, đúng số feature."""
     try:
         raw = np.asarray(X)
     except (TypeError, ValueError) as exc:
@@ -59,6 +62,7 @@ def _validate_input(X: Any, expected_features: int | None = None) -> FloatArray:
 
 
 def _squared_euclidean_distances(X: FloatArray, anchors: FloatArray) -> FloatArray:
+    """Tính khoảng cách Euclid bình phương; input X/anchors, output (n, m)."""
     with np.errstate(over="ignore", invalid="ignore"):
         differences = X[:, np.newaxis, :] - anchors[np.newaxis, :, :]
         distances = np.einsum("nmd,nmd->nm", differences, differences, optimize=True)
@@ -70,7 +74,7 @@ def _squared_euclidean_distances(X: FloatArray, anchors: FloatArray) -> FloatArr
 
 
 class AnchorMapping:
-    """Fit NFST anchors and transform samples into normalized anchor space."""
+    """Học anchor và biến đổi mẫu sang vector membership chuẩn hóa."""
 
     def __init__(
         self,
@@ -80,6 +84,7 @@ class AnchorMapping:
         batch_size: int = 1024,
         n_init: int = 10,
     ) -> None:
+        """Lưu cấu hình; n_anchors, sigma và batch_size ảnh hưởng chất lượng/tốc độ."""
         self.n_anchors = _validate_positive_integer("n_anchors", n_anchors)
         self.sigma = _validate_sigma(sigma)
         self.batch_size = _validate_positive_integer("batch_size", batch_size)
@@ -101,10 +106,16 @@ class AnchorMapping:
         self.anchor_mapping_fitted_ = False
 
     def _check_is_fitted(self) -> None:
+        """Optional validation: chặn transform trước khi anchor được fit."""
         if not self.anchor_mapping_fitted_:
             raise ValueError("Anchor mapping is not fitted.")
 
     def fit_anchor_mapping(self, X: Any) -> AnchorMapping:
+        """Học anchor từ X; trả về self với anchors_ và sigma_ đã cố định.
+
+        MiniBatch K-means tạo ``n_anchors`` tâm. Có thể tuning ``n_anchors``,
+        ``sigma``, ``batch_size``, ``n_init`` và ``random_state``.
+        """
         X_validated = _validate_input(X)
         n_samples, n_features = X_validated.shape
         if self.n_anchors > n_samples:
@@ -113,6 +124,7 @@ class AnchorMapping:
             )
 
         effective_batch_size = min(self.batch_size, n_samples)
+        # Phase 1: gom dữ liệu thành m tâm đại diện bằng MiniBatch K-means.
         estimator = MiniBatchKMeans(
             n_clusters=self.n_anchors,
             random_state=self.random_state,
@@ -126,6 +138,7 @@ class AnchorMapping:
         anchors = np.ascontiguousarray(estimator.cluster_centers_, dtype=np.float64)
         distances = _squared_euclidean_distances(X_validated, anchors)
 
+        # Phase 2: dùng sigma truyền vào, hoặc tự ước lượng từ anchor gần nhất.
         fallback_used = False
         if self.sigma is not None:
             sigma_resolved = self.sigma
@@ -144,6 +157,7 @@ class AnchorMapping:
                 sigma_source = "machine_epsilon_fallback"
                 fallback_used = True
 
+        # Output được lưu để inference tái sử dụng, tuyệt đối không fit lại.
         unique_anchor_count = int(np.unique(anchors, axis=0).shape[0])
         self.anchors_ = anchors
         self.sigma_ = sigma_resolved
@@ -161,7 +175,7 @@ class AnchorMapping:
         return self
 
     def compute_similarity(self, X: Any) -> FloatArray:
-        """Compute Eq. (9) with the fitted anchors and bandwidth."""
+        """Nhận X và trả ma trận Gaussian similarity (n, n_anchors), chưa normalize."""
         self._check_is_fitted()
         assert self.anchors_ is not None
         assert self.sigma_ is not None
@@ -175,7 +189,11 @@ class AnchorMapping:
         return np.ascontiguousarray(similarities, dtype=np.float64)
 
     def transform_anchor_space(self, X: Any) -> FloatArray:
-        """Transform samples with saved anchors and sigma without refitting."""
+        """Nhận X và trả membership Z (n, n_anchors), mỗi hàng có tổng bằng 1.
+
+        ``sigma`` điều khiển membership mềm hay sắc; anchor và sigma đã fit được
+        giữ nguyên để train/test dùng cùng một phép biến đổi.
+        """
         self._check_is_fitted()
         assert self.anchors_ is not None
         assert self.sigma_ is not None
@@ -198,5 +216,6 @@ class AnchorMapping:
         return np.ascontiguousarray(memberships, dtype=np.float64)
 
     def fit_transform_anchor_space(self, X: Any) -> FloatArray:
+        """Fit anchor trên X rồi trả ngay membership Z của chính X."""
         self.fit_anchor_mapping(X)
         return self.transform_anchor_space(X)

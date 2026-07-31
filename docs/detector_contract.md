@@ -68,4 +68,16 @@ adbench/baseline/NFST/
 
 `NFST.fit(X_train, y_train)` ignores `y_train` and delegates all supplied training rows to `NFSTModel.fit`. `NFST.predict_score(X_test)` delegates without refitting. The adapter honors the seed and returns nearest-base-point squared distances.
 
-NFST is intentionally not registered in `RunPipeline`. A later authorized integration may pass it as a custom detector or add it to the appropriate central category, with corresponding smoke tests. No central registration is part of the standalone implementation.
+NFST is registered in the unsupervised `RunPipeline` registry and can also be
+passed as a custom detector. Its public adapter contract remains unchanged.
+
+## TMPNFST adapter
+
+`adbench/baseline/TMPNFST/` provides a separate topological/spectral NFST
+baseline. It follows the same unsupervised adapter contract, ignores `y_train`,
+honors the supplied seed for spectral K-means/eigensolver initialization, and
+returns one finite nearest-centroid squared-distance score per test row.
+
+Both `NFST` and `TMPNFST` are registered in the unsupervised `RunPipeline`
+registry. Their algorithms and fitted state are independent; TMPNFST only
+reuses NFST's generic range/null-space numerical solver.

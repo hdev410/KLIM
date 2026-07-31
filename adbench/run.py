@@ -82,6 +82,7 @@ class RunPipeline():
             from adbench.baseline.PyOD import PYOD
             from adbench.baseline.DAGMM.run import DAGMM
             from adbench.baseline.NFST.run import NFST
+            from adbench.baseline.TMPNFST.run import TMPNFST
 
             # from pyod
             for _ in ['IForest', 'OCSVM', 'CBLOF', 'COF', 'COPOD', 'ECOD', 'FeatureBagging', 'HBOS', 'KNN', 'LODA',
@@ -91,6 +92,7 @@ class RunPipeline():
             # DAGMM
             self.model_dict['DAGMM'] = DAGMM
             self.model_dict['NFST'] = NFST
+            self.model_dict['TMPNFST'] = TMPNFST
 
         # semi-supervised algorithms
         elif self.parallel == 'semi-supervise':

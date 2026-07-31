@@ -18,6 +18,7 @@ IntArray = NDArray[np.int64]
 
 @dataclass(frozen=True)
 class BasePointResult:
+    """Output scoring setup: centroid, cluster ID/count và projected train."""
     base_points: FloatArray
     valid_cluster_ids: IntArray
     empty_cluster_ids: IntArray
@@ -27,6 +28,7 @@ class BasePointResult:
 
 
 def _validate_projection(projection: Any, n_anchors: int) -> FloatArray:
+    """Optional validation: kiểm tra projection có shape (n_anchors, p)."""
     try:
         raw = np.asarray(projection)
     except (TypeError, ValueError) as exc:
@@ -44,6 +46,7 @@ def _validate_projection(projection: Any, n_anchors: int) -> FloatArray:
 
 
 def _validate_assignments(assignments: Any, n_samples: int, n_anchors: int) -> IntArray:
+    """Optional validation: kiểm tra mỗi mẫu có một cluster ID hợp lệ."""
     raw = np.asarray(assignments)
     if raw.ndim != 1 or raw.shape[0] != n_samples:
         raise ValueError(f"assignments must have shape ({n_samples},).")
@@ -56,6 +59,7 @@ def _validate_assignments(assignments: Any, n_samples: int, n_anchors: int) -> I
 
 
 def _validate_points(points: Any, name: str) -> FloatArray:
+    """Optional validation: đổi tập điểm thành float64 2D hữu hạn."""
     try:
         raw = np.asarray(points)
     except (TypeError, ValueError) as exc:
@@ -71,6 +75,7 @@ def _validate_points(points: Any, name: str) -> FloatArray:
 
 
 def _validate_batch_size(batch_size: int | None, n_samples: int) -> int:
+    """Optional validation: chuẩn hóa batch_size về số hàng hợp lệ."""
     if batch_size is None:
         return n_samples
     if isinstance(batch_size, bool) or not isinstance(batch_size, Integral):
@@ -85,12 +90,17 @@ def build_subclass_base_points(
     projection: Any,
     assignments: Any,
 ) -> BasePointResult:
-    """Project training memberships and average each non-empty subclass."""
+    """Nhận Z/projection/cluster ID và trả centroid của từng subclass.
+
+    Output ``base_points`` được dùng làm đại diện normal khi inference. Số
+    centroid phụ thuộc ``n_anchors`` và subclass rỗng bị loại bỏ.
+    """
     memberships = validate_memberships(Z_train)
     projection_matrix = _validate_projection(projection, memberships.shape[1])
     cluster_ids = _validate_assignments(
         assignments, memberships.shape[0], memberships.shape[1]
     )
+    # Phase 1: chiếu mọi membership train sang NFST subspace.
     projected_training = np.ascontiguousarray(memberships @ projection_matrix)
     if not np.all(np.isfinite(projected_training)):
         raise ValueError("projected training samples must be finite.")
@@ -104,6 +114,7 @@ def build_subclass_base_points(
         raise ValueError("At least one non-empty subclass is required.")
 
     # Bỏ subclass rỗng, không tạo centroid zero giả.
+    # Phase 2: trung bình từng subclass không rỗng để tạo base point.
     base_points = np.vstack(
         [projected_training[cluster_ids == cluster_id].mean(axis=0)
          for cluster_id in valid_cluster_ids]
@@ -134,7 +145,11 @@ def score_projected_samples(
     batch_size: int | None = None,
     roundoff_tolerance: float = 1e-12,
 ) -> FloatArray:
-    """Return nearest squared Euclidean distance for each projected sample."""
+    """Nhận projected samples/centroids, trả khoảng cách bình phương gần nhất.
+
+    Tính theo batch để giảm RAM; ``batch_size`` chỉ ảnh hưởng tốc độ/bộ nhớ,
+    không nên thay đổi score ngoài sai số float rất nhỏ.
+    """
     samples = _validate_points(projected_samples, "projected_samples")
     centers = _validate_points(base_points, "base_points")
     if samples.shape[1] != centers.shape[1]:
@@ -150,6 +165,7 @@ def score_projected_samples(
     effective_batch_size = _validate_batch_size(batch_size, samples.shape[0])
     scores = np.empty(samples.shape[0], dtype=np.float64)
     center_norms = np.einsum("qd,qd->q", centers, centers)
+    # Dùng ||x||^2 + ||c||^2 - 2x.c để tránh tạo tensor (batch, center, dim).
     for start in range(0, samples.shape[0], effective_batch_size):
         stop = min(start + effective_batch_size, samples.shape[0])
         batch = samples[start:stop]
@@ -175,6 +191,7 @@ def score_anchor_memberships(
     *,
     batch_size: int | None = None,
 ) -> FloatArray:
+    """Nhận Z test, chiếu bằng projection và trả nearest-centroid score."""
     memberships = validate_memberships(Z_test)
     projection_matrix = _validate_projection(projection, memberships.shape[1])
     projected = np.ascontiguousarray(memberships @ projection_matrix)

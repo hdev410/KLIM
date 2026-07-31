@@ -10,6 +10,7 @@ import unittest
 import numpy as np
 
 from adbench.baseline.NFST.run import NFST
+from adbench.baseline.TMPNFST.run import TMPNFST
 from adbench.run import RunPipeline
 from scripts.smoke_test_nfst import (
     SmokeNFST,
@@ -57,6 +58,7 @@ class NFSTIntegrationTests(unittest.TestCase):
             n_samples_threshold=1000,
         )
         self.assertIs(pipeline.model_dict["NFST"], NFST)
+        self.assertIs(pipeline.model_dict["TMPNFST"], TMPNFST)
 
     def test_existing_unsupervised_registry_entries_are_unchanged(self) -> None:
         pipeline = RunPipeline(
@@ -65,7 +67,10 @@ class NFSTIntegrationTests(unittest.TestCase):
             generate_duplicates=False,
             n_samples_threshold=1000,
         )
-        self.assertEqual(set(pipeline.model_dict) - {"NFST"}, EXPECTED_EXISTING_UNSUPERVISED)
+        self.assertEqual(
+            set(pipeline.model_dict) - {"NFST", "TMPNFST"},
+            EXPECTED_EXISTING_UNSUPERVISED,
+        )
         self.assertEqual(pipeline.model_dict["IForest"].__name__, "PYOD")
 
     def test_registry_constructs_nfst_with_contract_keywords(self) -> None:

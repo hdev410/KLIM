@@ -1,57 +1,56 @@
-"""Thin ADBench adapter for the NFST detector."""
+"""Thin ADBench adapter for topological manifold-partitioned NFST."""
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-import numpy as np
 from numpy.typing import NDArray
+import numpy as np
 
-from .model import NFSTModel
-from .scatter import DEFAULT_MAX_GRAPH_BYTES
+from .model import TMPNFSTModel
 
 
-class NFST:
-    """Adapter mỏng đưa NFST vào đúng giao diện unsupervised của ADBench."""
+class TMPNFST:
+    """Adapter mỏng đưa TMPNFST vào giao diện unsupervised của ADBench."""
 
     def __init__(
         self,
         seed: int,
         model_name: str | None = None,
-        n_anchors: int = 32,
+        n_neighbors: int = 10,
+        n_components: int = 3,
         sigma: float | None = None,
-        alpha: float = 0.5,
-        batch_size: int = 1024,
-        tol: float = 1e-8,
+        n_init: int = 10,
+        eigen_tolerance: float = 1e-8,
+        eigen_maxiter: int | None = None,
         rank_tolerance: float = 1e-10,
         null_tolerance: float = 1e-8,
         max_components: int | None = None,
-        selection_mode: Literal["null", "smallest"] = "null",
-        max_graph_bytes: int | None = DEFAULT_MAX_GRAPH_BYTES,
+        selection_mode: Literal["null", "smallest"] = "smallest",
         score_batch_size: int | None = None,
     ) -> None:
-        """Nhận seed/model_name và chuyển các hyperparameter vào NFSTModel."""
+        """Nhận seed/model_name và chuyển hyperparameter vào TMPNFSTModel."""
         if model_name is not None and not isinstance(model_name, str):
             raise TypeError("model_name must be a string or None.")
-        self.model = NFSTModel(
-            n_anchors=n_anchors,
+        self.model = TMPNFSTModel(
+            n_neighbors=n_neighbors,
+            n_components=n_components,
             sigma=sigma,
-            alpha=alpha,
             random_state=seed,
-            batch_size=batch_size,
-            tol=tol,
+            n_init=n_init,
+            eigen_tolerance=eigen_tolerance,
+            eigen_maxiter=eigen_maxiter,
             rank_tolerance=rank_tolerance,
             null_tolerance=null_tolerance,
             max_components=max_components,
             selection_mode=selection_mode,
-            max_graph_bytes=max_graph_bytes,
             score_batch_size=score_batch_size,
         )
         self.seed = self.model.random_state
         self.model_name = model_name
 
-    def fit(self, X_train: Any, y_train: Any) -> NFST:
-        """Fit trên X_train và trả self; y_train chỉ để tương thích, không được dùng."""
+    def fit(self, X_train: Any, y_train: Any) -> TMPNFST:
+        """Fit trên X_train và trả self; y_train chỉ để tương thích, không dùng."""
         self.model.fit(X_train)
         return self
 

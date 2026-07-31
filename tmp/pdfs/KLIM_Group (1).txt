@@ -1,0 +1,100 @@
+=== PAGE 1 ===
+Topological Connected Component Partitioning for One-Class Null
+Foley-Sammon Transform
+1 Introduction
+In one-class classification, the goal is to characterize the distribution of nominal data to detect outliers.
+Standard Null Foley-Sammon Transform (NFST) approaches often rely on heuristic partitioning, such asK-
+means, to generate pseudo-labels. However, these methods assume hyperspherical clusters and fail to capture
+complex, non-convex manifold structures. We propose a **Topological Manifold Partitioning (TMP)**
+approach that discovers the natural connectivity of the data using graph-based contraction, extracting stable
+connected components as the basis for the NFST subspace.
+2 Topological Manifold Partitioning (TMP)
+Instead of selecting anchors or cluster centers, we build a global representation of the data and decompose
+it into topologically consistent components.
+2.1 Graph Construction and Lifetime Calculation
+LetX= [x 1, . . . ,xn]∈R d×n be the training set. We construct ak-nearest neighbor (k-NN) graphG= (V,E)
+where an edge exists betweenx i andx j if they are among each other’skclosest neighbors.
+To identify the ”core” structure of the manifold and eliminate density bridges, we apply an iterative
+graph contraction process. Letr (t)
+i be the degree (rank) of nodeiat iterationt. In each step, nodes with
+the minimum current rank are removed:
+τi =ts.t.r (t)
+i = min
+j∈Valive
+r(t)
+j .(1)
+The resultingLifetimeτ i represents the structural persistence of each sample. Samples with highτvalues
+are located in the dense, central skeletons of the manifold, while lowτvalues indicate boundary points or
+noise.
+2.2 Spectral-based Component Partitioning
+Once the weight matrixWof thek-NN graph is constructed, we can extract its manifold structure through its
+spectral properties. Instead of manual label propagation, we utilize the eigenvectors of the Graph Laplacian
+to identify the connected components (or weakly connected dense regions).
+1.Graph Laplacian Construction:Compute the degree matrixDwhereD ii = P
+j Wij. The normal-
+ized random-walk Laplacian is defined as:
+Lrw =I−D −1W(2)
+2.Eigen-decomposition:Solve the eigenvalue problemL rwv=λv. According to spectral graph theory,
+the number of eigenvaluesλ= 0 corresponds to the number of connected components in the graph.
+1
+
+=== PAGE 2 ===
+3.Manifold Embedding:We select theceigenvectorsV= [v 1, . . . ,vc] corresponding to thecsmallest
+eigenvalues. Each row ofVprovides a low-dimensional spectral embedding of the original data points
+xi.
+4.Pseudo-label Assignment:By applying a simple clustering (e.g.,K-means) on the rows ofV, we
+obtain the pseudo-labelsy={y 1, . . . , yn}. These labels identify the distinct topological components
+of the manifold.
+This spectral approach is more robust than simple connectivity, as the eigenvectors can effectively ”cut”
+weak density bridges that would otherwise merge distinct manifold structures.
+3 One-Class NFST via Spectral Components
+With the discovered connected components, we apply the Null Foley-Sammon Transform to find a subspace
+where within-component variance is minimized and between-component variance is maximized.
+3.1 Topological Scatter Matrices
+The within-class scatter matrixS w and the between-class scatter matrixS b are computed using the topo-
+logical pseudo-labels:
+Sw = 1
+n
+cX
+j=1
+X
+xi∈Cj
+(xi −µ j)(xi −µ j)T ,S b = 1
+n
+cX
+j=1
+nj(µj −µ)(µ j −µ) T ,(3)
+whereµ j is the mean of thej-th connected component andµis the global mean.
+3.2 Null Space Transformation
+We seek a projection matrixΘthat satisfies the NFST criterion:
+ΘT SwΘ= 0 andΘ T SbΘ>0.(4)
+The transformationΘmaps all nominal samples belonging to the same topological structure to a single
+point in the projected space.
+3.3 Anomaly Scoring
+For a test samplex ∗, the anomaly score is defined as the distance to the nearest topological component in
+the Null Space:
+A(x∗) = min
+j∈{1,...,c}
+∥ΘT x∗ −Θ T µj∥2
+2.(5)
+After obtaining the pseudo-labelsyfrom the spectral partitioning, we compute the scatter matricesS w
+andS b as defined in Eq. (2-3). The NFST then solves for the projection matrixΘthat lies in the null space
+ofS w.
+2
+
+=== PAGE 3 ===
+Algorithm 1Spectral-Partitioned One-Class NFST
+1:Input:Training setX, number of componentsc.
+2:Step 1: Spectral Discovery
+3:- Construct the adjacency matrixW(e.g., using a Gaussian kernel onk-NN).
+4:- Compute the Normalized LaplacianL rw =I−D −1W.
+5:- Extract theceigenvectorsVassociated with the smallest eigenvalues.
+6:- Assign pseudo-labelsy i by clustering the rows ofV.
+7:Step 2: NFST Subspace Learning
+8:- ComputeS w andS b based on the spectral pseudo-labelsy i.
+9:- Solve the generalized eigenvalue problem to find the Null SpaceΘ.
+10:Step 3: Scoring
+11:- For a test samplex ∗, project it:z ∗ =Θ T x∗.
+12:- CalculateA(x ∗) = minj ∥z∗ −centroid(z Cj )∥2.
+13:returnAnomaly scoreA(x ∗).
+3
